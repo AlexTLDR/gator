@@ -1,1 +1,4 @@
-{"db_url":"postgres://example","current_user_name":"alice"}
+{
+  "db_url": "postgres://username:password@host:port/database?sslmode=disable",
+  "current_user_name": "alex"
+}
