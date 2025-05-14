@@ -61,3 +61,18 @@ func printUser(user database.User) {
 	fmt.Printf(" * ID:      %v\n", user.ID)
 	fmt.Printf(" * Name:    %v\n", user.Name)
 }
+
+func handlerReset(s *state, cmd command) error {
+	// No arguments needed for this command
+	if len(cmd.Args) != 0 {
+		return fmt.Errorf("usage: %v (takes no arguments)", cmd.Name)
+	}
+
+	err := s.db.DeleteAllUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't delete users: %w", err)
+	}
+
+	fmt.Println("All users have been successfully deleted!")
+	return nil
+}
