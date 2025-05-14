@@ -62,6 +62,42 @@ func printUser(user database.User) {
 	fmt.Printf(" * Name:    %v\n", user.Name)
 }
 
+func handlerUsers(s *state, cmd command) error {
+	// No arguments needed for this command
+	if len(cmd.Args) != 0 {
+		return fmt.Errorf("usage: %v (takes no arguments)", cmd.Name)
+	}
+
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't retrieve users: %w", err)
+	}
+
+	if len(users) == 0 {
+		fmt.Println("No users found in the database.")
+		return nil
+	}
+
+	currentUser, err := s.cfg.GetUser()
+	if err != nil {
+		// If error getting current user, just print all users without marking anyone as current
+		for _, user := range users {
+			fmt.Printf("* %s\n", user.Name)
+		}
+		return nil
+	}
+
+	for _, user := range users {
+		if user.Name == currentUser {
+			fmt.Printf("* %s (current)\n", user.Name)
+		} else {
+			fmt.Printf("* %s\n", user.Name)
+		}
+	}
+
+	return nil
+}
+
 func handlerReset(s *state, cmd command) error {
 	// No arguments needed for this command
 	if len(cmd.Args) != 0 {
