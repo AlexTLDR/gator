@@ -27,6 +27,12 @@ func main() {
 		log.Fatalf("error connecting to db: %v", err)
 	}
 	defer db.Close()
+	
+	// Ensure all database tables exist
+	if err := ensureDatabaseMigrations(db); err != nil {
+		log.Fatalf("error ensuring database migrations: %v", err)
+	}
+	
 	dbQueries := database.New(db)
 
 	programState := &state{
@@ -42,6 +48,7 @@ func main() {
 	cmds.register("reset", handlerReset)
 	cmds.register("users", handlerUsers)
 	cmds.register("agg", handlerAgg)
+	cmds.register("addfeed", handlerAddFeed)
 
 	if len(os.Args) < 2 {
 		log.Fatal("Usage: cli <command> [args...]")

@@ -109,6 +109,6 @@ func handlerReset(s *state, cmd command) error {
 		return fmt.Errorf("couldn't delete users: %w", err)
 	}
 
-	fmt.Println("All users have been successfully deleted!")
+	fmt.Println("All users and their associated feeds have been successfully deleted!")
 	return nil
 }
