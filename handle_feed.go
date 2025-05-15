@@ -54,3 +54,30 @@ func printFeed(feed database.Feed) {
 	fmt.Printf(" * Created:   %v\n", feed.CreatedAt)
 	fmt.Printf(" * Updated:   %v\n", feed.UpdatedAt)
 }
+
+func handlerFeeds(s *state, cmd command) error {
+	// No arguments needed for this command
+	if len(cmd.Args) != 0 {
+		return fmt.Errorf("usage: %v (takes no arguments)", cmd.Name)
+	}
+
+	// Get all feeds with user information
+	feeds, err := s.db.GetFeedsWithUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't retrieve feeds: %w", err)
+	}
+
+	if len(feeds) == 0 {
+		fmt.Println("No feeds found in the database.")
+		return nil
+	}
+
+	fmt.Println("Feeds:")
+	for i, feed := range feeds {
+		fmt.Printf("%d. %s\n", i+1, feed.Name)
+		fmt.Printf("   URL:  %s\n", feed.Url)
+		fmt.Printf("   User: %s\n\n", feed.UserName)
+	}
+
+	return nil
+}
