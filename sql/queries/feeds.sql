@@ -30,3 +30,13 @@ SELECT f.id, f.created_at, f.updated_at, f.name, f.url, f.user_id, u.name as use
 FROM feeds f
 JOIN users u ON f.user_id = u.id
 ORDER BY f.created_at DESC;
+
+-- name: MarkFeedFetched :exec
+UPDATE feeds
+SET last_fetched_at = $1, updated_at = $1
+WHERE id = $2;
+
+-- name: GetNextFeedToFetch :one
+SELECT * FROM feeds
+ORDER BY last_fetched_at ASC NULLS FIRST
+LIMIT 1;

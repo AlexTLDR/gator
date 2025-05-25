@@ -59,6 +59,11 @@ func printFeed(feed database.Feed) {
 	fmt.Printf(" * User ID:   %v\n", feed.UserID)
 	fmt.Printf(" * Created:   %v\n", feed.CreatedAt)
 	fmt.Printf(" * Updated:   %v\n", feed.UpdatedAt)
+	if feed.LastFetchedAt.Valid {
+		fmt.Printf(" * Fetched:   %v\n", feed.LastFetchedAt.Time)
+	} else {
+		fmt.Printf(" * Fetched:   Never\n")
+	}
 }
 
 func handlerFeeds(s *state, cmd command) error {
