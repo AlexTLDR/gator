@@ -16,6 +16,10 @@ func ensureDatabaseMigrations(db *sql.DB) error {
 		return fmt.Errorf("ensure feeds table: %w", err)
 	}
 
+	if err := ensureFeedFollowsTable(db); err != nil {
+		return fmt.Errorf("ensure feed_follows table: %w", err)
+	}
+
 	return nil
 }
 
@@ -82,6 +86,43 @@ func ensureFeedsTable(db *sql.DB) error {
 		)
 		if err != nil {
 			return fmt.Errorf("create feeds table: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func ensureFeedFollowsTable(db *sql.DB) error {
+	var exists bool
+	err := db.QueryRowContext(
+		context.Background(),
+		`SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'feed_follows'
+        )`,
+	).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("check feed_follows table exists: %w", err)
+	}
+
+	// If table doesn't exist, create it
+	if !exists {
+		log.Println("Creating feed_follows table...")
+		_, err = db.ExecContext(
+			context.Background(),
+			`CREATE TABLE feed_follows (
+                id UUID PRIMARY KEY,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                user_id UUID NOT NULL,
+                feed_id UUID NOT NULL,
+                UNIQUE(user_id, feed_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE
+            )`,
+		)
+		if err != nil {
+			return fmt.Errorf("create feed_follows table: %w", err)
 		}
 	}
 
