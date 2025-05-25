@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/AlexTLDR/gator/internal/database"
+	"github.com/google/uuid"
 )
 
 type RSSFeed struct {
@@ -132,21 +134,124 @@ func scrapeFeeds(s *state) error {
 	// Print feed items
 	fmt.Printf("📚 Found %d items in feed\n", len(rssFeed.Channel.Items))
 	fmt.Println("----------------------------")
+	
+	// Count how many new posts we save
+	newPostsCount := 0
+	
 	for i, item := range rssFeed.Channel.Items {
 		pubDate := item.PubDate
 		if pubDate == "" {
 			pubDate = "No date"
 		}
+		
+		// Print the item
 		fmt.Printf("%d. [%s] %s\n", i+1, pubDate, item.Title)
 		fmt.Printf("   🔗 %s\n", item.Link)
 		if len(item.Categories) > 0 {
 			fmt.Printf("   🏷️  %s\n", strings.Join(item.Categories, ", "))
 		}
+		
+		// Save the post to the database
+		err = savePost(ctx, s, item, feed.ID)
+		if err != nil {
+			// If it's a duplicate, just skip it silently
+			if strings.Contains(err.Error(), "duplicate key") {
+				fmt.Printf("   ⚠️ Post already exists in database\n")
+			} else {
+				fmt.Printf("   ❌ Error saving post: %v\n", err)
+			}
+		} else {
+			fmt.Printf("   ✅ Post saved to database\n")
+			newPostsCount++
+		}
+		
 		fmt.Println()
 	}
+	
+	fmt.Printf("===========================\n")
+	fmt.Printf("📊 Saved %d new posts from this feed\n", newPostsCount)
 	fmt.Println("===========================")
 
 	return nil
+}
+
+// savePost saves a single RSS item as a post in the database
+func savePost(ctx context.Context, s *state, item RSSItem, feedID uuid.UUID) error {
+	if item.Link == "" {
+		return errors.New("post has no URL")
+	}
+	
+	if item.Title == "" {
+		return errors.New("post has no title")
+	}
+	
+	// Parse the published date
+	var publishedAt sql.NullTime
+	if item.PubDate != "" {
+		// Try multiple date formats
+		parsedTime, err := parseRSSDate(item.PubDate)
+		if err == nil {
+			publishedAt = sql.NullTime{
+				Time:  parsedTime,
+				Valid: true,
+			}
+		} else {
+			fmt.Printf("   ⚠️ Could not parse date '%s': %v\n", item.PubDate, err)
+			// Use current time as fallback
+			publishedAt = sql.NullTime{
+				Time:  time.Now().UTC(),
+				Valid: true,
+			}
+		}
+	} else {
+		// If no date provided, use current time
+		publishedAt = sql.NullTime{
+			Time:  time.Now().UTC(),
+			Valid: true,
+		}
+	}
+	
+	// Create the post
+	now := time.Now().UTC()
+	_, err := s.db.CreatePost(ctx, database.CreatePostParams{
+		ID:          uuid.New(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		Title:       item.Title,
+		Url:         item.Link,
+		Description: sql.NullString{String: item.Description, Valid: item.Description != ""},
+		PublishedAt: publishedAt,
+		FeedID:      feedID,
+	})
+	
+	return err
+}
+
+// parseRSSDate tries to parse a date string from an RSS feed in various formats
+func parseRSSDate(dateStr string) (time.Time, error) {
+	formats := []string{
+		time.RFC1123Z,     // "Mon, 02 Jan 2006 15:04:05 -0700"
+		time.RFC1123,      // "Mon, 02 Jan 2006 15:04:05 MST"
+		time.RFC822Z,      // "02 Jan 06 15:04 -0700"
+		time.RFC822,       // "02 Jan 06 15:04 MST"
+		time.RFC3339,      // "2006-01-02T15:04:05Z07:00"
+		"2006-01-02T15:04:05-07:00",
+		"2006-01-02 15:04:05 -0700",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+		"02 Jan 2006 15:04:05 MST",
+		"02 Jan 2006 15:04:05 -0700",
+		"Mon, 2 Jan 2006 15:04:05 MST",
+		"Mon, 2 Jan 2006 15:04:05 -0700",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, dateStr); err == nil {
+			return t, nil
+		}
+	}
+	
+	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
 }
 
 func handlerAgg(s *state, cmd command) error {

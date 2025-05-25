@@ -24,6 +24,48 @@ func ensureDatabaseMigrations(db *sql.DB) error {
 		return fmt.Errorf("ensure feeds last_fetched_at column: %w", err)
 	}
 
+	if err := ensurePostsTable(db); err != nil {
+		return fmt.Errorf("ensure posts table: %w", err)
+	}
+
+	return nil
+}
+
+func ensurePostsTable(db *sql.DB) error {
+	var exists bool
+	err := db.QueryRowContext(
+		context.Background(),
+		`SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'posts'
+        )`,
+	).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("check posts table exists: %w", err)
+	}
+
+	// If table doesn't exist, create it
+	if !exists {
+		log.Println("Creating posts table...")
+		_, err = db.ExecContext(
+			context.Background(),
+			`CREATE TABLE posts (
+                id UUID PRIMARY KEY,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                title TEXT NOT NULL,
+                url TEXT NOT NULL UNIQUE,
+                description TEXT,
+                published_at TIMESTAMP,
+                feed_id UUID NOT NULL,
+                FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE
+            )`,
+		)
+		if err != nil {
+			return fmt.Errorf("create posts table: %w", err)
+		}
+	}
+
 	return nil
 }
 
