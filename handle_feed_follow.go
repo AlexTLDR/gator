@@ -87,6 +87,45 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	// Check for correct number of arguments
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("usage: %v <url>", cmd.Name)
+	}
+
+	url := cmd.Args[0]
+
+	// Check if the feed exists first
+	feed, err := s.db.GetFeedByURL(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("couldn't find feed with URL '%s': %w", url, err)
+	}
+
+	// Check if the user is following the feed
+	_, err = s.db.GetFeedFollowByUserAndFeed(context.Background(), database.GetFeedFollowByUserAndFeedParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("you are not following the feed with URL '%s'", url)
+		}
+		return fmt.Errorf("error checking if feed is followed: %w", err)
+	}
+
+	// Delete the feed follow
+	err = s.db.DeleteFeedFollowByUserAndFeedURL(context.Background(), database.DeleteFeedFollowByUserAndFeedURLParams{
+		UserID: user.ID,
+		Url:    url,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't unfollow feed: %w", err)
+	}
+
+	fmt.Printf("You (%s) have unfollowed '%s'\n", user.Name, feed.Name)
+	return nil
+}
+
 func printFeedFollow(feedFollow database.CreateFeedFollowRow) {
 	fmt.Printf(" * ID:        %v\n", feedFollow.ID)
 	fmt.Printf(" * User:      %v\n", feedFollow.UserName)
